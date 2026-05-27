@@ -1,93 +1,102 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# branje rezultatov benchmark meritev
-df = pd.read_csv("times.csv", header=None)
-df.columns = ["cores", "time"]
+# branje CSV
+df = pd.read_csv("times.csv")
 
-# urejanje po številu procesov
-# pomembno za pravilni prikaz grafov
-df = df.sort_values("cores")
-
-# referenčni čas izvajanja na enem procesu
-T1 = df[df["cores"] == 1]["time"].values[0]
-
-# SPEEDUP:
-# S(p) = T1 / Tp
-df["speedup"] = T1 / df["time"]
-
-# EFFICIENCY:
-# E(p) = S(p) / p
-df["efficiency"] = df["speedup"] / df["cores"]
+# odstrani presledke (če jih imaš)
+df.columns = [c.strip() for c in df.columns]
 
 
-# KARP–FLATT METRIKA
-# ocenjuje delež sekvenčnega dela programa
+# MPI DATA
+mpi = df[df["method"] == "mpi"].copy()
+mpi = mpi.sort_values("cores")
+
+T1_mpi = mpi[mpi["cores"] == 1]["time"].values[0]
+
+mpi["speedup"] = T1_mpi / mpi["time"]
+mpi["efficiency"] = mpi["speedup"] / mpi["cores"]
+
 def karp_flatt(p, S):
+    if p == 1:
+        return 0
     return ((1 / S) - (1 / p)) / (1 - 1 / p)
 
-
-df["karp_flatt"] = df.apply(
-    lambda row: karp_flatt(row["cores"], row["speedup"]),
+mpi["karp_flatt"] = mpi.apply(
+    lambda r: karp_flatt(r["cores"], r["speedup"]),
     axis=1
 )
 
-# SPEEDUP GRAF
+
+# SPEEDUP MPI
 plt.figure()
-
-plt.plot(
-    df["cores"],
-    df["speedup"],
-    marker="o"
-)
-
-plt.title("Speedup MPI simulacije")
-plt.xlabel("Število procesov")
+plt.plot(mpi["cores"], mpi["speedup"], marker="o")
+plt.title("MPI Speedup")
+plt.xlabel("Cores")
 plt.ylabel("Speedup")
-
-plt.grid(True)
+plt.grid()
 plt.tight_layout()
-
-plt.savefig("speedup.png")
+plt.savefig("mpi_speedup.png")
 plt.show()
 
-# EFFICIENCY GRAF
+# EFFICIENCY MPI
 plt.figure()
-
-plt.plot(
-    df["cores"],
-    df["efficiency"],
-    marker="o"
-)
-
-plt.title("Efficiency MPI simulacije")
-plt.xlabel("Število procesov")
+plt.plot(mpi["cores"], mpi["efficiency"], marker="o")
+plt.title("MPI Efficiency")
+plt.xlabel("Cores")
 plt.ylabel("Efficiency")
-
-plt.grid(True)
+plt.grid()
 plt.tight_layout()
-
-plt.savefig("efficiency.png")
+plt.savefig("mpi_efficiency.png")
 plt.show()
 
-# KARP–FLATT GRAF
-plt.figure()
 
-plt.plot(
-    df["cores"],
-    df["karp_flatt"],
-    marker="o"
+# KARP-FLATT MPI
+plt.figure()
+plt.plot(mpi["cores"], mpi["karp_flatt"], marker="o")
+plt.title("MPI Karp-Flatt")
+plt.xlabel("Cores")
+plt.ylabel("f(p)")
+plt.grid()
+plt.tight_layout()
+plt.savefig("mpi_karp_flatt.png")
+plt.show()
+
+
+# BAR GRAF: MPI + NUMBA + NUMPY + vrednosti
+df_bar = pd.read_csv("times.csv")
+df_bar = df_bar.dropna()
+df_bar = df_bar.groupby(["method", "cores"], as_index=False)["time"].mean()
+df_bar["label"] = df_bar["method"].str.upper() + " " + df_bar["cores"].astype(int).astype(str)
+df_bar = df_bar.sort_values("time")
+
+plt.figure(figsize=(10, 5))
+
+bars = plt.bar(
+    df_bar["label"],
+    df_bar["time"]
 )
 
-plt.title("Karp–Flatt parameter")
-plt.xlabel("Število procesov")
-plt.ylabel("e(p)")
 
-plt.grid(True)
+# DODAMO VREDNOST NAD STOLPCE
+
+for bar in bars:
+    height = bar.get_height()
+    plt.text(
+        bar.get_x() + bar.get_width() / 2,
+        height,
+        f"{height:.2f}s",
+        ha="center",
+        va="bottom",
+        fontsize=9
+    )
+
+plt.title("Primerjava časa izvedb (log skala)")
+plt.ylabel("Čas [s]")
+plt.xticks(rotation=45)
+
+plt.grid(axis="y", linestyle="--", alpha=0.5)
+
 plt.tight_layout()
-
-plt.savefig("karp_flatt.png")
+plt.savefig("bar_times.png")
 plt.show()
-
-# izpis rezultatov v tabeli
-print(df)
