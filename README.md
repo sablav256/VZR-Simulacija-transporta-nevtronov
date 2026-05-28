@@ -167,35 +167,29 @@ Za vsak nevtron smo naključno določili dolžino poti, ga premaknili, določili
 V projektu smo simulirali N število nevtronov, vsak ima pozicijo in smer gibanja. Za vsak nevtron generiramo naključno prosto pot, premaknemo nevtron ter določimo absorbcijo in sipanje. Če se sipa določimo novo naključno smer in ponavljamo dokler ni absorbiran ali pa zapusti sistem. 
 
 Po zagonu serialnega dela (en cpu) v main.py smo prejeli rezultat o tem kakšno je razmerje med absorbiranimi, zapuščenimi in odbitimi nevtroni, kar nam nakazuje, da naša simulacija deluje.
- 
- <img width="485" height="129" alt="image" src="https://github.com/user-attachments/assets/7d883484-b0cc-4a4b-8c3b-2ff631e4da95" />
+
 
 ┌──(kali㉿kali)-[/media/sf_VZR_-_Visoko_zmogljivo_raunalnitvo/Projekt2]
 └─$ python main.py
 TRANSMISSION: 0.00157
 ABSORPTION: 0.72837
 REFLECTION: 0.27006
-TIME: 2.0089237689971924
+TIME: 2.428065538406372
 
-Sledi zagon MPI paralelizacije na 1, 2, 4 in 8 jedrih.
+Sledi zagon MPI paralelizacije na 1, 2 in 4 jedrih.
 
- <img width="583" height="247" alt="image" src="https://github.com/user-attachments/assets/5d6c6963-cae1-47ab-a02b-75a6b53f259b" />
-
-──(kali㉿kali)-[/media/sf_VZR_-_Visoko_zmogljivo_raunalnitvo/Projekt2]
 └─$ mpirun -np 1 python benchmark.py
-AVG TIME: 4.416295855333334
+AVG TIME: 2.379461766666888
                                                                                                  
-┌──(kali㉿kali)-[/media/sf_VZR_-_Visoko_zmogljivo_raunalnitvo/Projekt2]
 └─$ mpirun -np 2 python benchmark.py
-AVG TIME: 3.0013740079999995
+AVG TIME: 1.2305788666708395
                                                                                                  
-┌──(kali㉿kali)-[/media/sf_VZR_-_Visoko_zmogljivo_raunalnitvo/Projekt2]
 └─$ mpirun -np 4 python benchmark.py
-AVG TIME: 1.9752716680000002
+AVG TIME: 0.7086478333343015
+
+└─$ mpirun -np 6 python benchmark.py
+AVG TIME: 0.5230845394759276
                                                                                                  
-┌──(kali㉿kali)-[/media/sf_VZR_-_Visoko_zmogljivo_raunalnitvo/Projekt2]
-└─$ mpirun --oversubscribe -np 8 python benchmark.py
-AVG TIME: 1.9117396076666668
 
 Čas izvajanja se je zmanjševal z vsakim procesom. 
 
@@ -217,7 +211,7 @@ Graf prikazuje sub-linearno rast. Do 4 procesov se pospešek povečuje skoraj li
 •	pri 8 procesih: ~2.31× 
 To pomeni, da dodajanje procesov po 4 jedrih ne prinaša več bistvenega izboljšanja. Zaradi komunikacijskega overhead-a MPI, sinhronizacije procesov, omejitve pomnilniške prepustnosti (memory bandwidth) in  zmanjšanje količine dela na proces.
 
- <img width="375" height="279" alt="image" src="https://github.com/user-attachments/assets/6a4d299c-1e5c-4bca-8d76-fabef42dc35f" />
+<img width="634" height="475" alt="image" src="https://github.com/user-attachments/assets/12720d4d-7322-41e0-b2ed-c4ff12f00df6" />
 
 
 
@@ -235,7 +229,9 @@ Graf učinkovitosti kaže monotono padajočo krivuljo, kar je tipično za MPI st
 
 Vsak dodatni proces prispeva manj učinkovitega računa, delež komunikacijskega časa se povečuje in sistem izgublja “compute-to-communication ratio” 
 To je pričakovano vedenje za Monte Carlo MPI simulacije pri srednje velikem problemu.
-<img width="466" height="348" alt="image" src="https://github.com/user-attachments/assets/2e65e299-5f81-4feb-9105-d44f1dec74d4" />
+
+<img width="631" height="471" alt="image" src="https://github.com/user-attachments/assets/4d46c116-eafe-4dd4-b371-eeb982df1243" />
+
 
  
 **Karp-Flatt metrika** ali Karp–Flatt metric meri koliko problema je efektivno sekvenčnega. Formula: 
@@ -250,45 +246,44 @@ Graf kaže rahlo variabilne vrednosti, vendar brez jasnega monotonega trenda.
 •	pri 8 procesih: ~0.35 
 Sistem ima majhen, a ne zanemarljiv efektivni sekvenčni del, variacije so posledica:  meritvenega šuma (MPI_Wtime), majhnega problema glede na 8 procesov, overhead sinhronizacije. Problem ne skalira idealno nad 4 procesi, saj overhead začne dominirati.
 
- <img width="345" height="257" alt="image" src="https://github.com/user-attachments/assets/5d294f3a-29c4-4c22-ab9d-cbdae7bc2344" />
+<img width="628" height="474" alt="image" src="https://github.com/user-attachments/assets/87742854-ed24-4781-97f3-2077663a66fe" />
+
 
 
 Sledi še zagon programa z **Numba**, ki prikazuje pospešitev Monte Carlo simulacije transporta nevtronov znotraj enega procesa z uporabo Numba (MPI razdeli delo na jedra).
 
- <img width="589" height="72" alt="image" src="https://github.com/user-attachments/assets/4b4ef517-cbc3-4ca2-882b-a758512dafb2" />
-
-
-──(kali㉿kali)-[/media/sf_VZR_-_Visoko_zmogljivo_raunalnitvo/Projekt2]
 └─$ python numba_accel.py
 RESULT: (145396, 306, 54298)
-TIME: 0.6694719791412354
+TIME: 0.8343968391418457
                           
 Sledi še zagon programa z **NumPy**, ki prikazuje pospešitev Monte Carlo simulacije z uporabo vektoriziranih operacij nad polji podatkov. NumPy uporablja optimizirane numerične operacije implementirane v jeziku C, kar zmanjša Python interpreter overhead in omogoča bistveno hitrejše izvajanje simulacije tudi brez MPI paralelizacije.
 
- <img width="582" height="124" alt="image" src="https://github.com/user-attachments/assets/331d1625-2185-457c-a2e1-89e1178b730c" />
-
-
-┌──(kali㉿kali)-[/media/sf_VZR_-_Visoko_zmogljivo_raunalnitvo/Projekt2]
 └─$ python monte_carlo_numpy.py
 NUMPY RESULTS
 TRANSMISSION: 0.00013
 ABSORPTION: 0.45496
 REFLECTION: 0.54491
-TIME: 0.04258894920349121
+TIME: 0.06214118003845215
 
 Izvedli smo primerjavo časa izvajanja med različnimi implementacijami simulacije, kar omogoča oceno učinkovitosti posameznih optimizacij.
 
- <img width="605" height="303" alt="image" src="https://github.com/user-attachments/assets/27345911-c4d0-45fc-b588-8e3a999f8cbd" />
+<img width="991" height="493" alt="image" src="https://github.com/user-attachments/assets/67f483f9-9f73-4bee-baf7-6f763ba7dd70" />
+
 
 Čas izvajanja glede na število procesov
-<img width="532" height="205" alt="image" src="https://github.com/user-attachments/assets/f0984233-787b-4e02-8cbf-6728d8a70bd4" />
 
-<img width="589" height="205" alt="image" src="https://github.com/user-attachments/assets/df5e98ff-49f5-4b44-bf4f-f81697cda43b" />
-
-
- 
-┌──(kali㉿kali)-[/media/sf_VZR_-_Visoko_zmogljivo_raunalnitvo/Projekt2]
 └─$ python plot_results.py
+
+FINAL RESULTS TABLE:
+
+cores     time  speedup  efficiency  karp_flatt
+    1 2.379462 1.000000    1.000000    0.000000
+    2 1.230579 1.933612    0.966806    0.034334
+    4 0.708648 3.357749    0.839437    0.063758
+    6 0.523085 4.548905    0.758151    0.063800
+Numba 0.834397      NaN         NaN         NaN
+NumPy 0.062141      NaN         NaN         NaN
+
 
 
 
