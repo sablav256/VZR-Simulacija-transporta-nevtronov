@@ -1,6 +1,6 @@
 # VZR-Simulacija-transporta-nevtronov 
 ### Elisabeth Sambolec
-Simulacija transporta nevtronov skozi material z uporabo Monte Carlo metode, ter optimizacija izvajanja z uporabo MPI paralelizacije in Numba optimizacije
+Simulacija transporta nevtronov skozi material z uporabo Monte Carlo metode, ter optimizacija izvajanja z uporabo MPI paralelizacije, Numba in Numpy optimizacije
 
 ## Zagon projekta
 Projekt zaženemo tako, da se umestimo v mapo, kjer se nahaja projekt:
@@ -13,7 +13,7 @@ Nato sledi zagon MPI paralelizacije
 - mpirun -np 1 python benchmark.py
 - mpirun -np 2 python benchmark.py
 - mpirun -np 4 python benchmark.py
-- mpirun --oversubscribe -np 8 python benchmark.py
+- mpirun -np 6 python benchmark.py
 
 Nato zaženemo še numba_accel.py:
 - python numba_accel.py
@@ -151,11 +151,11 @@ Vsak proces simulira svoj del nevtronov in vodi lokalno statistiko za absorbiran
 
 Datoteka **main.py** vsebuje glavni vstopni program, kjer definiramo material (debelino, dolžino proste poti (povprečna razdalja med trki) in verjetnost absorpcije pri trku), določimo število nevtronov v simulaciji (100.000) ter zaženemo MPI simulacijo, kjer izpiše rezultate (transmisija, absorpcija, refleksija). 
 
-Datoteka **benchmark.py** meri zmogljivost. Za vsako konfiguracijo jeder (1/2/4/8 jeder) izvede 3 ponovitve simulacije, izmeri čas (MPI.Wtime()) in izračuna povprečje ter shrani rezultat v CSV in ga hkrati prikaže v konzoli. Iz tega rezultata lahko kasneje izračunamo pospešek, učinkovitost in Karp–Flatt faktor. 
+Datoteka **benchmark.py** meri zmogljivost. Za vsako konfiguracijo jeder (1/2/4/6 jeder) izvede 3 ponovitve simulacije, izmeri čas (MPI.Wtime()) in izračuna povprečje ter shrani rezultat v CSV in ga hkrati prikaže v konzoli. Iz tega rezultata lahko kasneje izračunamo pospešek, učinkovitost in Karp–Flatt faktor. 
 
 Datoteka **plot_results.py** bere rezultate datoteke benchmark.py, kjer sta shranjena parametra cores in time. Nato izračuna in izdela graf za pospešek (speedup), učinkovitost (efficiency) in Karp-Flatt faktor.  
 
-Datoteka **numba_accel.py** prikazuje pospešitev Monte Carlo simulacije transporta nevtronov znotraj enega procesa z uporabo Numba (MPI razdeli delo na jedra). Nastavili smo začetne vrednosti absorbiranih, zapuščenih in odbitih nevtronov. Nato smo funkcijo s funkcijo simulate_batch implementirali model interakcij nevtronov z materialom. 
+Datoteka **numba_accel.py** prikazuje pospešitev Monte Carlo simulacije transporta nevtronov znotraj enega procesa z uporabo JIT kompilacije knjižnice Numba. Nastavili smo začetne vrednosti absorbiranih, zapuščenih in odbitih nevtronov. Nato smo funkcijo s funkcijo simulate_batch implementirali model interakcij nevtronov z materialom. 
 
 Datoteka **monte_carlo_numpy.py** prikazuje optimizacijo Monte Carlo simulacije z uporabo knjižnice NumPy. Program uporablja vektorizirane operacije nad polji podatkov, kar omogoča hitrejše izvajanje numeričnih izračunov brez uporabe klasičnih Python zank za vsak posamezni delec. Simulacija hkrati obdela veliko število nevtronov, pri čemer se izračunajo transmisija, absorpcija in refleksija. Zaradi optimiziranih operacij v jeziku C NumPy bistveno zmanjša interpreter overhead in izboljša učinkovitost izvajanja simulacije tudi brez MPI paralelizacije.
 
@@ -176,7 +176,7 @@ ABSORPTION: 0.72837
 REFLECTION: 0.27006
 TIME: 2.428065538406372
 
-Sledi zagon MPI paralelizacije na 1, 2 in 4 jedrih.
+Sledi zagon MPI paralelizacije na 1, 2, 4 in 6 jedrih.
 
 └─$ mpirun -np 1 python benchmark.py
 AVG TIME: 2.379461766666888
@@ -205,11 +205,13 @@ $$
 T(1) = čas na enem jedru oz. procesu,
 T(p) = čas na p jedrih oz. procesih. 
 
-Graf prikazuje sub-linearno rast. Do 4 procesov se pospešek povečuje skoraj linearno, nato pa se rast upočasni.
-•	pri 2 procesih: ~1.47× 
-•	pri 4 procesih: ~2.24× 
-•	pri 8 procesih: ~2.31× 
-To pomeni, da dodajanje procesov po 4 jedrih ne prinaša več bistvenega izboljšanja. Zaradi komunikacijskega overhead-a MPI, sinhronizacije procesov, omejitve pomnilniške prepustnosti (memory bandwidth) in  zmanjšanje količine dela na proces.
+Graf prikazuje skoraj linearno rast pospeška. Z večanjem števila procesov se čas izvajanja zmanjšuje, vendar zaradi komunikacije med procesi ne dosežemo idealnega linearnega skaliranja.
+
+• pri 2 procesih: ~1.93×
+• pri 4 procesih: ~3.36×
+• pri 6 procesih: ~4.55×
+
+Rezultati kažejo, da MPI paralelizacija učinkovito pospeši izvajanje simulacije. Odstopanje od idealnega linearnega pospeška je posledica komunikacijskega overheada, sinhronizacije procesov in drugih stroškov paralelnega izvajanja.
 
 <img width="634" height="475" alt="image" src="https://github.com/user-attachments/assets/12720d4d-7322-41e0-b2ed-c4ff12f00df6" />
 
@@ -221,14 +223,14 @@ $$
 E(p) = \frac{S(p)}{p}
 $$
 
-Graf učinkovitosti kaže monotono padajočo krivuljo, kar je tipično za MPI strong scaling.
-•	1 proces: 1.00 
-•	2 procesi: 0.74 
-•	4 procesi: 0.56 
-•	8 procesov: 0.29 
+Graf učinkovitosti kaže postopno zmanjševanje učinkovitosti z večanjem števila procesov, kar je pričakovano pri MPI paralelizaciji.
 
-Vsak dodatni proces prispeva manj učinkovitega računa, delež komunikacijskega časa se povečuje in sistem izgublja “compute-to-communication ratio” 
-To je pričakovano vedenje za Monte Carlo MPI simulacije pri srednje velikem problemu.
+• 1 proces: 1.00
+• 2 procesa: 0.97
+• 4 procesi: 0.84
+• 6 procesov: 0.76
+
+Kljub padanju učinkovitosti ostaja izkoristek procesov razmeroma visok tudi pri 6 procesih, kar kaže na dobro skalabilnost simulacije.
 
 <img width="631" height="471" alt="image" src="https://github.com/user-attachments/assets/4d46c116-eafe-4dd4-b371-eeb982df1243" />
 
@@ -240,11 +242,13 @@ $$
 e_{Karp-Flatt} = \frac{\frac{1}{S(p)} - \frac{1}{p}}{1 - \frac{1}{p}}
 $$
 
-Graf kaže rahlo variabilne vrednosti, vendar brez jasnega monotonega trenda.
-•	pri 2 procesih: ~0.36 
-•	pri 4 procesih: ~0.26 
-•	pri 8 procesih: ~0.35 
-Sistem ima majhen, a ne zanemarljiv efektivni sekvenčni del, variacije so posledica:  meritvenega šuma (MPI_Wtime), majhnega problema glede na 8 procesov, overhead sinhronizacije. Problem ne skalira idealno nad 4 procesi, saj overhead začne dominirati.
+Graf Karp–Flatt metrike kaže zelo nizke vrednosti efektivnega sekvenčnega dela.
+
+• pri 2 procesih: ~0.034
+• pri 4 procesih: ~0.064
+• pri 6 procesih: ~0.064
+
+Nizke vrednosti Karp–Flatt metrike kažejo, da je večina programa uspešno paralelizirana. Rahlo povečanje metrike pri večjem številu procesov je posledica komunikacije med procesi in sinhronizacijskega overheada.
 
 <img width="628" height="474" alt="image" src="https://github.com/user-attachments/assets/87742854-ed24-4781-97f3-2077663a66fe" />
 
@@ -286,13 +290,16 @@ NumPy 0.062141      NaN         NaN         NaN
 
 
 
-
 ## ZAKLJUČEK
 
-Rezultati Monte Carlo simulacije transporta nevtronov kažejo, da večina nevtronov ostane ujeta v materialu. V simulaciji je bilo absorbiranih 725762 nevtronov, 1486 jih je prešlo skozi material, medtem ko jih je bil večji del odbit nazaj. To potrjuje, da gre za debel material, kjer prevladuje absorpcija nad transmisijo.
-MPI meritve kažejo, da se čas izvajanja zmanjšuje z naraščanjem števila procesov, vendar skaliranje ni linearno. Speedup narašča do 4 procesov, nato pa se rast bistveno upočasni (pri 8 procesih približno 2.31×). Učinkovitost zato pada z večanjem števila procesov, kar je posledica komunikacijskega overheada, sinhronizacije med procesi ter omejitev pomnilniške prepustnosti. Karp–Flatt metrika dodatno potrjuje prisotnost efektivnega sekvenčnega dela in variabilnost zaradi majhnega razmerja med količino računa in številom procesov.
-Dodatne optimizacije na nivoju algoritma kažejo bistveno večje izboljšave zmogljivosti kot sama MPI paralelizacija. Implementacija z Numba JIT kompilacijo je zmanjšala čas izvajanja z odstranitvijo interpreter overheada, medtem ko je NumPy vektorizacija dosegla še večji pospešek zaradi izvajanja operacij na nivoju C implementacije.
-Rezultati tako potrjujejo, da je za učinkovito HPC simulacijo ključna kombinacija paralelizacije in optimizacije numeričnega jedra algoritma. MPI izboljša razporeditev dela med procesorji, vendar je skupna zmogljivost močno odvisna tudi od učinkovitosti lokalnega računanja. V tem primeru se je izkazalo, da optimizacija algoritma (NumPy/Numba) prinese večji pospešek kot zgolj povečevanje števila MPI procesov.
+Rezultati Monte Carlo simulacije transporta nevtronov kažejo, da večina nevtronov ostane ujeta v materialu. V simulaciji je bilo absorbiranih 725762 nevtronov, 1486 jih je prešlo skozi material, preostali pa so se odbili nazaj. To potrjuje, da gre za relativno debel material, kjer prevladuje absorpcija nad transmisijo.
+
+MPI meritve kažejo, da se čas izvajanja zmanjšuje z naraščanjem števila procesov. Pri 6 procesih je bil dosežen pospešek približno 4,55× glede na izvajanje z enim procesom, kar kaže na dobro skalabilnost simulacije. Učinkovitost se z večanjem števila procesov sicer zmanjšuje, vendar ostaja razmeroma visoka tudi pri 6 procesih (≈ 76 %). Karp–Flatt metrika ostaja nizka (≈ 0,03–0,06), kar kaže, da je večina programa uspešno paralelizirana in da komunikacijski overhead predstavlja le manjši delež celotnega časa izvajanja.
+
+Primerjava različnih implementacij pokaže, da optimizacija algoritma pogosto prinese večje izboljšanje zmogljivosti kot zgolj povečevanje števila procesov. Implementacija z Numba JIT kompilacijo je zmanjšala interpreter overhead in pospešila izvajanje simulacije, medtem ko je NumPy zaradi vektoriziranih operacij, implementiranih v jeziku C, dosegel najboljši rezultat. NumPy je simulacijo izvedel približno 39-krat hitreje od osnovne serialne implementacije.
+
+Rezultati potrjujejo, da je za učinkovito izvajanje HPC simulacij pomembna kombinacija paralelizacije in optimizacije numeričnega jedra algoritma. MPI učinkovito porazdeli delo med procese, medtem ko optimizirane numerične knjižnice, kot sta NumPy in Numba, dodatno izboljšajo zmogljivost izvajanja.
+
 
 
  
